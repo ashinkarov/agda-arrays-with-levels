@@ -378,6 +378,11 @@ breduce< (i bounded _) pf = i bounded pf
 binject≤-thm : ∀ {m n}{i j}.{m≤n : m ≤ n} → v i ≡ v j → binject≤ i m≤n ≡ j
 binject≤-thm refl = refl
 
+breduce<-thm : ∀ {m n}{i : BFin m}.{vi<n} → BFin.v (breduce< {n = n} i vi<n) ≡ BFin.v i
+breduce<-thm {i = i bounded i<m}{i<n} with breduce< (i bounded i<m) i<n
+... | q = refl
+
+
 sum : ∀ {l s} → Ar l ℕ s → ℕ
 sum {l} a = let s , v = repr a in Data.Vec.sum v
 
@@ -582,6 +587,8 @@ ranked-cut {suc (suc l)} s@((ss , vs) , v) ri@(iv , n) = let
          , btabulate λ i → blookup v $ idx→off (ss , vs) $ right-to-full {n = n} $ off→idx (ss , shsh-r) i)
 
 
+bfin-pedantic-cong : ∀ {u x y} → x ≡ y → .(x<u : x < u) → .(y<u : y < u) → x bounded x<u ≡ y bounded y<u
+bfin-pedantic-cong refl x<u y<u = refl
 
 lkup-left : ∀ {l}{s : ShType (suc (suc l))}{ri}{i}
              → let
@@ -593,13 +600,12 @@ lkup-left : ∀ {l}{s : ShType (suc (suc l))}{ri}{i}
              → Σ _ (λ t → t ≡ (o-i sv (i ∷ [])))
              → (j : BFin (prod ss))
              → BFin (blookup (modvec iv (BFin.v n) sv) j)
-lkup-left {s = ((ss , sv) , v)} {ri = iv@(viv bounded iv<u) , n} p (ii , p') i@(vi bounded i<u) with BFin.v iv ≟ BFin.v i
-... | yes pp = --rewrite (blookup∘modvec₁ iv i (bfin-cong pp) sv (BFin.v n)) =
-                let
-                  t = (ix-lookup ii i)
-                  q = breduce< t (subst₂ _<_ (cong₂ (λ x y → BFin.v (ix-lookup x y)) (sym p') (bfin-cong pp)) refl p)
-                     --breduce< t (subst₂ _<_ (cong (λ x → BFin.v (ix-lookup x iv)) (sym p')) refl p)
-                in subst BFin (sym $ blookup∘modvec₁ iv i (bfin-cong pp) sv (BFin.v n)) q --q --q
+lkup-left {s = ((ss , sv) , v)} {ri = iv@(viv bounded iv<u) , n} p (ii , refl) i@(vi bounded i<u) with BFin.v iv ≟ BFin.v i
+... | yes refl = let
+                  tv bounded tv<sv[j] = (ix-lookup ii i)
+                  q = breduce< (tv bounded tv<sv[j]) p
+               in subst BFin (sym $ blookup∘modvec₁ iv iv refl _ _) q
+
 ... | no ¬p = subst BFin (sym $ blookup∘modvec₂ _ _ (bfin-≢ {x<n = iv<u} {y<n = i<u} $ ¬p) sv _) (ix-lookup ii i)
 
 
@@ -628,6 +634,11 @@ lkup-right {s = ((ss , sv) , v)} {ri = iv@(viv bounded iv<u) , n} ¬p (ii , p') 
 ... | no ¬pp = subst BFin (sym $ blookup∘modvec₂ _ _ (bfin-≢ {x<n = iv<u} {y<n = i<u} $ ¬pp) sv _) (ix-lookup ii i)
 
 
+a<b⇒a≡c⇒c<b : ∀ {a b c} → a < b → a ≡ c → c < b
+a<b⇒a≡c⇒c<b a<b refl = a<b
+
+
+
 lkup-left-thm-1 : ∀ {l}{s : ShType (suc (suc l))}{ri}{i}
           → let
                  (sl , _) , s₂ = ranked-cut s ri
@@ -638,14 +649,18 @@ lkup-left-thm-1 : ∀ {l}{s : ShType (suc (suc l))}{ri}{i}
             in
             (p : s[i] < ni)
           → (j : _)
-          → (iv≡j : BFin.v iv ≡ BFin.v j)
+          → (iv≡jv : BFin.v iv ≡ BFin.v j)
           → BFin.v (lkup-left {s = s}{ri = ri} p (o-i sv (i ∷ []) , refl) j)
-            ≡ BFin.v (breduce< {n = BFin.v n} (ix-lookup (o-i sv (i ∷ [])) j)
-                               (subst (_< BFin.v n) (cong (λ x → BFin.v (ix-lookup (o-i sv (i ∷ [])) x)) (bfin-cong iv≡j)) p))
+            ≡ BFin.v (ix-lookup (o-i sv (i ∷ [])) j)
 lkup-left-thm-1 {s = ((ss , sv) , v)} {ri = iv@(viv bounded iv<u) , n}{i} p j refl with BFin.v iv ≟ BFin.v j
-... | yes refl = bfin-subst {i = (breduce< (ix-lookup (o-i sv (i ∷ [])) (viv bounded _)) _)}
-                            {m≡n = (sym (blookup∘modvec₁ (viv bounded _) (viv bounded _) refl sv (BFin.v n)))}
-... | no ¬pp = contradiction refl ¬pp
+... | yes refl  =  trans (bfin-subst {i = (breduce< (ix-lookup (o-i sv (i ∷ [])) (viv bounded _)) _)}
+                                     {m≡n = (sym (blookup∘modvec₁ (viv bounded _) (viv bounded _) refl sv (BFin.v n)))})
+                         (breduce<-thm {n = BFin.v n}
+                                       {i = ix-lookup (o-i sv (i ∷ [])) (viv bounded _)}
+                                       {vi<n = p})
+
+... | no ¬p = contradiction refl ¬p
+
 
 
 lkup-left-thm-2 : ∀ {l}{s : ShType (suc (suc l))}{ri}{i}
@@ -835,6 +850,15 @@ lf∘fl : ∀ {l}{s : ShType (suc (suc l))}{ri}
                    ∷ [])))) j ≡ ix-lookup (o-i sv (i ∷ [])) j
 lf∘fl {s = s@((ss , sv) , v)} {ri@(iv@(viv bounded iv<u) , (nn bounded n<u))} i p (j bounded j<u) with viv ≟ j
 ... | yes refl = binject≤-thm
+                   {i = (subst BFin (blookup∘modvec₁ iv iv refl sv nn)
+                                    (ix-lookup
+                                     (o-i (modvec iv nn sv)
+                                      (ix-lookup
+                                       (i-o (modvec iv nn sv)
+                                        (ix-tabulate (lkup-left {s = s} p (o-i sv (i ∷ []) , refl))))
+                                       (0 bounded auto≥)
+                                       ∷ []))
+                                     iv))}
                    {m≤n = ≤-pred n<u}
                    (trans (bfin-subst {m≡n = (blookup∘modvec₁ iv iv refl sv nn) })
                           let
@@ -867,15 +891,15 @@ rf∘fr : ∀ {l}{s : ShType (suc (suc l))}{ri}
              → (¬p : ¬ (BFin.v $ ix-lookup (Ix.flat-ix $ off→idx (proj₁ s) i) iv) < BFin.v n)
              → (j : BFin (prod ss))
              → (right-to-full-hlp {ss = ss} {n = n}
-            (ix
-             (o-i
-              (modvec iv (blookup sv iv ∸ BFin.v n) sv)
-              (ix-lookup
-               (i-o
-                (modvec iv (blookup sv iv ∸ BFin.v n) sv)
-                (ix-tabulate (lkup-right {s = s} {ri = ri} ¬p (o-i sv (i ∷ []) , refl))))
-               (0 bounded auto≥)
-               ∷ [])))) j ≡ ix-lookup (o-i sv (i ∷ [])) j
+                                  (ix
+                                   (o-i
+                                    (modvec iv (blookup sv iv ∸ BFin.v n) sv)
+                                    (ix-lookup
+                                     (i-o
+                                      (modvec iv (blookup sv iv ∸ BFin.v n) sv)
+                                      (ix-tabulate (lkup-right {s = s} {ri = ri} ¬p (o-i sv (i ∷ []) , refl))))
+                                     (0 bounded auto≥)
+                                     ∷ [])))) j ≡ ix-lookup (o-i sv (i ∷ [])) j
 rf∘fr {s = s@((ss , sv) , v)} {ri@(iv@(viv bounded iv<u) , (nn bounded n<u))} i ¬p (j bounded j<u) with viv ≟ j
 ... | yes refl = bfin-cong (trans (cong (nn +_)
                                         (trans (bfin-subst {m≡n = (blookup∘modvec₁ iv iv refl sv (blookup sv iv ∸ nn )) })
@@ -918,13 +942,13 @@ _ri++_ {suc (suc l)} {s@((ss , sv) , v)} {ri@(iv@(viv bounded iv<u) , n)} (ix il
                                          {n = prod ss}
                                          {x = sv}
                                          (thm-io-ixtab {n = prod ss} {x = sv}
-                                                       {f = (left-to-full-hlp {ss = ss} {n = n}
-                                                               (ix (o-i _
-                                                                       (ix-lookup
-                                                                          (i-o (modvec iv _ _)
-                                                                             (ix-tabulate (lkup-left {s = s} {ri = ri} p _)))
-                                                                          (0 bounded _)
-                                                                        ∷ [])))) }
+                                                       {f = left-to-full-hlp {ss = ss} {n = n}
+                                                            (ix
+                                                             (o-i (modvec iv (BFin.v n) sv)
+                                                              (ix-lookup
+                                                               (i-o (modvec iv (BFin.v n) sv)
+                                                                (ix-tabulate (lkup-left {s = s}{ri = ri} p (o-i sv (i ∷ []) , refl))))
+                                                               (0 bounded _) ∷ [])))}
                                                        {i = i}
                                                        (lf∘fl {s = s} {ri = ri} i p))))
                                  x
@@ -940,17 +964,18 @@ _ri++_ {suc (suc l)} {s@((ss , sv) , v)} {ri@(iv@(viv bounded iv<u) , n)} (ix il
                                             {n = prod ss}
                                             {x = sv}
                                             {f = right-to-full-hlp {ss = ss} {n = n}
-            (ix
-             (o-i
-              (modvec (viv bounded _) (blookup sv (viv bounded _) ∸ BFin.v n) sv)
-              (ix-lookup
-               (i-o
-                (modvec (viv bounded _) (blookup sv (viv bounded _) ∸ BFin.v n) sv)
-                (ix-tabulate (lkup-right {s = s} {ri = ri} ¬p (o-i sv (i ∷ []) , refl))))
-               (0 bounded _)
-               ∷ [])))} {i = i} (rf∘fr {s = s} {ri = ri} i ¬p))))
+                                                                   (ix
+                                                                    (o-i
+                                                                     (modvec (viv bounded _) (blookup sv (viv bounded _) ∸ BFin.v n) sv)
+                                                                     (ix-lookup
+                                                                      (i-o
+                                                                       (modvec (viv bounded _) (blookup sv (viv bounded _) ∸ BFin.v n) sv)
+                                                                       (ix-tabulate (lkup-right {s = s} {ri = ri} ¬p (o-i sv (i ∷ []) , refl))))
+                                                                      (0 bounded _)
+                                                                      ∷ [])))}
+                                            {i = i}
+                                            (rf∘fr {s = s} {ri = ri} i ¬p))))
                                 x
-
 
 
 nest : ∀ {a}{X : Set a}{l s} → Ar l X s → (ri : RankedT s) →
