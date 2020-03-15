@@ -23,63 +23,12 @@ open import Data.Nat.Divisibility
 open import Data.Nat.Solver
 open +-*-Solver
 
+open import BFin
+open import NatFacts
+
 {-# BUILTIN REWRITE _≡_ #-}
 
--- Fin defined as a refinement type.
-record BFin (u : ℕ) : Set where
-  constructor _bounded_
-  field
-    v : ℕ
-    .v<u : v < u
-
-open BFin
-
--- An eliminator for the irrelevant bottom type.
-⊥-elim-irr : ∀ {w} {Whatever : Set w} → .⊥ → Whatever
-⊥-elim-irr ()
-
--- Some BFin properties and actions.
-bfin-to-< : ∀ {n}{x : BFin n} → v x < n
-bfin-to-< {n}{x bounded x<n} with x <? n
-... | yes p = p
-... | no ¬p = ⊥-elim-irr (¬p x<n)
-
-bfin-projv : ∀ {n}{x y : BFin n} → x ≡ y → v x ≡ v y
-bfin-projv refl = refl
-
-bfin-cong : ∀ {n}{x y : BFin n} → v x ≡ v y → x ≡ y
-bfin-cong refl = refl
-
-bfin-id : ∀ {n} → (i : BFin n) → let (_ bounded i<n) = i in v i bounded i<n ≡ i 
-bfin-id (i bounded _) = refl
-
-bfin-subst : ∀ {m}{i : BFin m}{n}{m≡n : m ≡ n}
-           → BFin.v (subst BFin m≡n i) ≡ BFin.v i
-bfin-subst {i = i bounded i<m}{n}{refl} = refl
-
-_≟b_ : ∀ {n} → Decidable (_≡_ {A = BFin n})
-(x bounded _) ≟b (y bounded _) with x ≟ y
-... | yes refl = yes refl
-... | no ¬p = no λ fx≡fy → contradiction (bfin-projv fx≡fy) ¬p
-
-bsuc : ∀ {n} → BFin n → BFin (suc n)
-bsuc (i bounded i<n) = suc i bounded s≤s i<n
-
-blookup : ∀ {a}{n}{X : Set a} → Vec X n → BFin n → X
-blookup {n = suc n} (x ∷ xs) (zero bounded v<u) = x
-blookup {n = suc n} (x ∷ xs) (suc i bounded v<u) = blookup xs (i bounded ≤-pred v<u)
-
-btabulate : ∀ {a}{n}{X : Set a} → (BFin n → X) → Vec X n
-btabulate {n = zero} f = []
-btabulate {n = suc n} f = (f (0 bounded 0<1+n)) ∷ btabulate (f ∘ bsuc)
-
-btabulate∘blookup : ∀ {a}{n}{X : Set a}{v : Vec X n} → btabulate (blookup v) ≡ v
-btabulate∘blookup {n = zero} {v = []} = refl
-btabulate∘blookup {n = suc n} {v = x ∷ v₁} = cong₂ _∷_ refl btabulate∘blookup
-
-blookup∘btabulate : ∀ {a}{n}{X : Set a}{f : BFin n → X} → ∀ i → blookup (btabulate f) i ≡ f i
-blookup∘btabulate {n = suc n} (zero bounded i<n) = refl
-blookup∘btabulate {n = suc n} (suc i bounded i<n) = blookup∘btabulate {n = n} (i bounded ≤-pred i<n)
+open BFin.BFin
 
 {-# REWRITE btabulate∘blookup #-}
 {-# REWRITE blookup∘btabulate #-}
@@ -182,46 +131,13 @@ unimap : ∀ {a}{X : Set a}{l s} → Ar l X s → _
 unimap (imap a) = a
 
 
-
-magic-bfin : ∀ {a}{X : Set a} → BFin 0 → X
-magic-bfin ()
-
-a*b≢0⇒a≢0 : ∀ {a b} → a * b ≢ 0 → a ≢ 0
-a*b≢0⇒a≢0 {zero}    {b} 0≢0 0≡0 = 0≢0 0≡0
-a*b≢0⇒a≢0 {(suc a)} {b} _       = λ ()
-
-a*b≢0⇒b≢0 : ∀ {a b} → a * b ≢ 0 → b ≢ 0
-a*b≢0⇒b≢0 {a} {b} rewrite (*-comm a b) = a*b≢0⇒a≢0
-
--- A basic fact about division that is not yet in the stdlib.
-/-mono-x : ∀ {a b c} → a < b * c → (c≢0 : False (c ≟ 0))
-         → (a / c) {≢0 = c≢0} < b
-/-mono-x {a}{b}{c} a<b*c c≢0 with <-cmp ((a / c) {≢0 = c≢0}) b
-/-mono-x {a} {b} {c} a<b*c c≢0 | tri< l< _ _ = l<
-/-mono-x {a} {b} {c} a<b*c c≢0 | tri≈ _ l≡ _ = let
-     a<a/c*c = subst (a <_) (cong₂ _*_ (sym l≡) refl) a<b*c
-     a/c*c≤a = m/n*n≤m a c {≢0 = c≢0}
-     a<a = ≤-trans a<a/c*c a/c*c≤a
-   in contradiction a<a (n≮n a) 
-/-mono-x {a} {b} {suc c} a<b*c c≢0 | tri> _ _ l> = let
-     b*c<a/c*c = *-monoˡ-< c l>
-     a/c*c≤a = m/n*n≤m a (suc c) {≢0 = c≢0}
-     b*c≤a = ≤-trans b*c<a/c*c a/c*c≤a
-     a<a = <-trans a<b*c b*c≤a
-   in contradiction a<a (n≮n a) 
-
-
-n≢0⇒m%n<n : ∀ {m n} → (pf : n ≢ 0) → (m % n) {≢0 = fromWitnessFalse pf} < n
-n≢0⇒m%n<n {n = zero} pf = contradiction refl pf
-n≢0⇒m%n<n {m}{n = suc n} pf = m%n<n m n
-
 -- Offset to linearised index.
 o-i : ∀ {n} → (sh : Vec ℕ n)
     → FlatIx 1 (flat-prod sh ∷ [])
     → FlatIx n sh
 o-i [] iv = []
 o-i (s ∷ sh) iv with flat-prod (s ∷ sh) ≟ 0
-o-i (s ∷ sh) (x ∷ []) | yes p rewrite p = magic-bfin x
+o-i (s ∷ sh) (x ∷ []) | yes p rewrite p = ¬BFin0 x
 o-i (s ∷ sh) (off ∷ []) | no ¬p = let
                                          o bounded o<s*sh = off
                                          tl = flat-prod sh
@@ -229,7 +145,6 @@ o-i (s ∷ sh) (off ∷ []) | no ¬p = let
                                          x = (o / tl) {≢0 = tl≢0}
                                     in (x bounded /-mono-x o<s*sh tl≢0)
                                        ∷ o-i sh (((o % tl) {≢0 = tl≢0} bounded n≢0⇒m%n<n (a*b≢0⇒b≢0 {a = s} ¬p)) ∷ [])
-
 
 -- Some instance magic, move it some place that is more appropriate.
 instance
@@ -278,7 +193,7 @@ i-o : ∀ {n} → (s : Vec ℕ n)
     → FlatIx 1 (flat-prod s ∷ [])
 i-o [] iv = (0 bounded auto≥) ∷ iv
 i-o (s ∷ sh) (i ∷ iv) with flat-prod (s ∷ sh) ≟ 0
-i-o (s ∷ sh) (i ∷ iv) | yes p rewrite p = magic-bfin $ Πs≡0⇒Fin0 (s ∷ sh) (i ∷ iv) p
+i-o (s ∷ sh) (i ∷ iv) | yes p rewrite p = ¬BFin0 $ Πs≡0⇒Fin0 (s ∷ sh) (i ∷ iv) p
 i-o (s ∷ sh) (i ∷ iv) | no ¬p = (rm-thm i (a*b≢0⇒b≢0 {a = s} ¬p) (ix-lookup (i-o sh iv) (0 bounded auto≥))) ∷ []
 
 
@@ -287,27 +202,11 @@ idx→off : ∀ {l} → (sh : ShType l) → Ix l sh → BFin (prod sh)
 idx→off {zero} sh iv = 0 bounded auto≥
 idx→off {suc l} (s , v) (ix flat-ix) = ix-lookup (i-o v flat-ix) (0 bounded auto≥)
 
-divmod-thm : ∀ {a b m n}
-           → (n≢0 : n ≢ 0)
-           → a ≡ (m % n) {≢0 = fromWitnessFalse n≢0}
-           → b ≡ (m / n) {≢0 = fromWitnessFalse n≢0} * n
-           → m ≡ a + b
-divmod-thm {n = zero} n≢0 _ _ = contradiction refl n≢0
-divmod-thm {m = m}{n = suc n} n≢0 refl refl = m≡m%n+[m/n]*n m n
-
-
-sx≮1 : ∀ {x} → suc x < 1 → ⊥
-sx≮1 {x} (s≤s ())
-
-ssx≮2 : ∀ {x} → suc (suc x) < 2 → ⊥
-ssx≮2 (s≤s (s≤s ()))
 
 BFin1≡0 : ∀ (i : BFin 1) → i ≡ (0 bounded auto≥)
 BFin1≡0 (0 bounded _) = refl
 BFin1≡0 (suc x bounded 1+x<1) = ⊥-elim-irr (sx≮1 1+x<1)
 
-¬BFin0 : ∀ {a}{X : Set a} (i : BFin 0) → X
-¬BFin0 (i bounded ())
 
 -- Index-to offset and offset-to-index are reverses of each other.
 io-oi : ∀ {n}{x : Vec _ n}{i : BFin (flat-prod x)}
@@ -330,7 +229,6 @@ io-oi {suc n} {x ∷ x₁} {i} | no ¬p | no ¬q
                                                               (io-oi {x = x₁})) refl)
                                                        refl)))
 
-
 shape-repr : ∀ {l X} → ReprAr l X → ShType l
 shape-repr {zero} _ = tt
 shape-repr {suc l} (s , v) = s
@@ -347,40 +245,6 @@ reix iv pf = let ox = idx→off _ iv in off→idx _ $ subst BFin pf ox
 -- Reshape operation.
 reshape : ∀ {a}{X : Set a}{l l₁ s s₁} → Ar l X s → prod s ≡ prod s₁ → Ar l₁ X s₁
 reshape (imap a) pf = imap λ iv → a $ reix iv (sym pf)
-
--- Some further facts about BFin.
--- Similarly to Fin:
---   binect increases the bound;
---   braise increases the bound and the element
-binject : ∀ {m n} → BFin m → BFin (m + n)
-binject (x bounded x<m) = x bounded ≤-trans x<m (m≤m+n _ _)
-
-braise : ∀ {m n} → BFin m → BFin (n + m)
-braise {m}{n} (x bounded x<m) = (n + x) bounded +-monoʳ-< n x<m
-
-
-x≥y⇒[1+x]-y≡1+[x-y] : ∀ {x y} → x ≥ y → suc x ∸ y ≡ suc (x ∸ y)
-x≥y⇒[1+x]-y≡1+[x-y] {x} {zero} x≥y = refl
-x≥y⇒[1+x]-y≡1+[x-y] {suc x} {suc y} (s≤s x≥y) = x≥y⇒[1+x]-y≡1+[x-y] x≥y
-
-breduce : ∀ {m n} → (i : BFin (m + n)) → (v i ≥ m) → BFin n
-breduce {m}{n} (x bounded x<m+n) x≥m = (x ∸ m) bounded (subst₂ _≤_ (x≥y⇒[1+x]-y≡1+[x-y] x≥m)
-                                                                   (m+n∸m≡n m n)
-                                                                   $ ∸-monoˡ-≤ m x<m+n)
-
-binject≤ : ∀ {m n} → BFin m → .(m ≤ n) → BFin n
-binject≤ (x bounded x<m) m≤n = x bounded ≤-trans x<m m≤n
-
-breduce< : ∀ {m n} → (i : BFin m) → .(v i < n) → BFin n
-breduce< (i bounded _) pf = i bounded pf
-
-
-binject≤-thm : ∀ {m n}{i j}.{m≤n : m ≤ n} → v i ≡ v j → binject≤ i m≤n ≡ j
-binject≤-thm refl = refl
-
-breduce<-thm : ∀ {m n}{i : BFin m}.{vi<n} → BFin.v (breduce< {n = n} i vi<n) ≡ BFin.v i
-breduce<-thm {i = i bounded i<m}{i<n} with breduce< (i bounded i<m) i<n
-... | q = refl
 
 
 sum : ∀ {l s} → Ar l ℕ s → ℕ
@@ -518,8 +382,6 @@ left-to-full : ∀ {l}{ss : ShType l}{vs iv}{n : BFin (1 + (blookup vs iv))}
              → Ix _ (ss , modvec iv (BFin.v n) vs) → Ix _ (ss , vs)
 left-to-full {n = n} ii = ix $ ix-tabulate (left-to-full-hlp {n = n} ii)
 
-s<z⇒⊥ : ∀ {x} → x < 0 → ⊥
-s<z⇒⊥ {x} = λ ()
 
 ux<m-n⇒vn+vx<m : ∀ {m n}{x : BFin (m ∸ n)} → n + BFin.v x < m
 ux<m-n⇒vn+vx<m {m}{n}{x = x bounded x<m-n} with m ∸ n ≟ 0
@@ -587,9 +449,6 @@ ranked-cut {suc (suc l)} s@((ss , vs) , v) ri@(iv , n) = let
          , btabulate λ i → blookup v $ idx→off (ss , vs) $ right-to-full {n = n} $ off→idx (ss , shsh-r) i)
 
 
-bfin-pedantic-cong : ∀ {u x y} → x ≡ y → .(x<u : x < u) → .(y<u : y < u) → x bounded x<u ≡ y bounded y<u
-bfin-pedantic-cong refl x<u y<u = refl
-
 lkup-left : ∀ {l}{s : ShType (suc (suc l))}{ri}{i}
              → let
                  (sl , _) , s₂ = ranked-cut s ri
@@ -609,11 +468,6 @@ lkup-left {s = ((ss , sv) , v)} {ri = iv@(viv bounded iv<u) , n} p (ii , refl) i
 ... | no ¬p = subst BFin (sym $ blookup∘modvec₂ _ _ (bfin-≢ {x<n = iv<u} {y<n = i<u} $ ¬p) sv _) (ix-lookup ii i)
 
 
-a<b⇒a-m<b-m : ∀ {a b m} → a < b → a ≥ m → a ∸ m < b ∸ m
-a<b⇒a-m<b-m {zero} {suc b} {zero} a<b a≥m = a<b
-a<b⇒a-m<b-m {suc a} {suc b} {zero} a<b a≥m = a<b
-a<b⇒a-m<b-m {suc a} {suc b} {suc m} a<b a≥m = a<b⇒a-m<b-m (≤-pred a<b) (≤-pred a≥m)
-
 lkup-right : ∀ {l}{s : ShType (suc (suc l))}{ri}{i}
              → let
                  _ , _ = ranked-cut s ri
@@ -632,11 +486,6 @@ lkup-right {s = ((ss , sv) , v)} {ri = iv@(viv bounded iv<u) , n} ¬p (ii , p') 
                                                          (≮⇒≥ λ x → ¬p (subst (_< BFin.v n) (cong (λ y → BFin.v (ix-lookup y iv)) p' ) x))
                 in subst BFin (sym $ blookup∘modvec₁ iv i refl sv (blookup sv iv ∸ BFin.v n)) q
 ... | no ¬pp = subst BFin (sym $ blookup∘modvec₂ _ _ (bfin-≢ {x<n = iv<u} {y<n = i<u} $ ¬pp) sv _) (ix-lookup ii i)
-
-
-a<b⇒a≡c⇒c<b : ∀ {a b c} → a < b → a ≡ c → c < b
-a<b⇒a≡c⇒c<b a<b refl = a<b
-
 
 
 lkup-left-thm-1 : ∀ {l}{s : ShType (suc (suc l))}{ri}{i}
@@ -761,28 +610,6 @@ full-to-right {l}{s@((ss , sv) , v)} {ri@(iv@(viv bounded iv<u) , n)} i ¬p = le
 
 
 
-b≡0+c≡a⇒b+c≡a : ∀ {a b c} → b ≡ 0 → c ≡ a → b + c ≡ a
-b≡0+c≡a⇒b+c≡a refl refl = refl
-
-m≡m+x⇒0≡x : ∀ {m x} → m ≡ m + x → 0 ≡ x
-m≡m+x⇒0≡x {m}{x} m≡m+x = +-cancelˡ-≡ m (trans (+-identityʳ m) m≡m+x)
-
-a*b≡0⇒b≢0⇒a≡0 : ∀ {a b} → a * b ≡ 0 → b ≢ 0 → a ≡ 0
-a*b≡0⇒b≢0⇒a≡0 {a}{b} a*b≡0 b≢0 with (m*n≡0⇒m≡0∨n≡0 a a*b≡0)
-a*b≡0⇒b≢0⇒a≡0 {a} {b} a*b≡0 b≢0 | inj₁ x = x
-a*b≡0⇒b≢0⇒a≡0 {a} {b} a*b≡0 b≢0 | inj₂ y = contradiction y b≢0
-
--- m≤n⇒m%n≡m
-m<n⇒m/n≡0 : ∀ {m n} → (m<n : m < n) → ∀ {≢0} → (m / n) {≢0} ≡ 0
-m<n⇒m/n≡0 {m} {n@(suc n-1)} m<n = let
-                      m%n≡m = m≤n⇒m%n≡m (≤-pred m<n)
-                      m≡m%n+m/n*n = (m≡m%n+[m/n]*n m n-1)
-                      m≡m+m/n*n = trans m≡m%n+m/n*n (cong₂ _+_ m%n≡m refl)
-                      m/n*n≡0 = sym (m≡m+x⇒0≡x m≡m+m/n*n)
-                      m/n≡0 = a*b≡0⇒b≢0⇒a≡0 {a = m / n} {b = n} m/n*n≡0 (m<n⇒n≢0 m<n) 
-                    in m/n≡0 
-
-
 blookup-1 : ∀ {a}{X : Set a}{x : X}{i} → blookup (x ∷ []) i ≡ x
 blookup-1 {i = zero bounded i<u} = refl
 blookup-1 {i = suc i bounded i<u} = ⊥-elim-irr (sx≮1 i<u)
@@ -795,9 +622,6 @@ ixl-io<sh {n}{s}{i}{iv} =
     ixl<u = bfin-to-< {x = ixl}
   in subst₂ _<_ refl (blookup-1 {i = i}) ixl<u
 
-
-a<c⇒c|b⇒[a+b]%c≡a : ∀ {a b c} → a < c → (c ∣ b) → ∀ {≢0} → ((a + b) % c) {≢0} ≡ a
-a<c⇒c|b⇒[a+b]%c≡a {a} {b} {c@(suc c-1)} a<c c|b = trans (%-remove-+ʳ a c|b) (m≤n⇒m%n≡m (≤-pred a<c))
 
 ixl-mods : ∀ {n}{s}{sh : Vec _ n}{i : BFin s}{iv : FlatIx _ sh}
          → (¬p : flat-prod (s ∷ sh) ≢ 0)
@@ -815,7 +639,7 @@ ixl-mods {n}{s}{sh}{i}{iv} ¬p = trans (cong (_% flat-prod sh)
 ixl-oi-io : ∀ {n}{sv : Vec _ n}{i} → o-i sv (ix-lookup (i-o sv i) (0 bounded auto≥) ∷ []) ≡ i
 ixl-oi-io {zero} {[]} {[]} = refl
 ixl-oi-io {suc n} {s ∷ sh} {i ∷ iv} with flat-prod (s ∷ sh) ≟ 0
-... | yes p = magic-bfin $ Πs≡0⇒Fin0 (s ∷ sh) (i ∷ iv) p
+... | yes p = ¬BFin0 $ Πs≡0⇒Fin0 (s ∷ sh) (i ∷ iv) p
 ... | no ¬p = cong₂ _∷_
                    (bfin-cong (trans (cong (λ x → (x / flat-prod sh){≢0 = fromWitnessFalse $ a*b≢0⇒b≢0 {a = s} ¬p})
                                      (v-rm-thm {x = i}
