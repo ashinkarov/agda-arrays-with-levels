@@ -3,15 +3,15 @@ open import Data.Nat
 open import Data.Nat.DivMod 
 open import Data.Nat.Properties
 
-open import Data.Product
-open import Data.Sum
+open import Data.Product hiding (map)
+open import Data.Sum hiding (map)
 open import Function using (_$_ ; _∘_ ; case_of_)
-open import Data.Vec hiding (sum)
+open import Data.Vec hiding (sum; map)
 open import Data.Vec.Properties
 open import Data.Unit hiding (_≟_; _≤_)
 
 open import Relation.Nullary
-open import Relation.Nullary.Decidable
+open import Relation.Nullary.Decidable hiding (map)
 open import Relation.Nullary.Negation
 open import Relation.Binary.PropositionalEquality
 open import Relation.Binary.Core
@@ -208,7 +208,7 @@ BFin1≡0 (0 bounded _) = refl
 BFin1≡0 (suc x bounded 1+x<1) = ⊥-elim-irr (sx≮1 1+x<1)
 
 
--- Index-to offset and offset-to-index are reverses of each other.
+-- Index-to offset and offset-to-index are inverses of each other.
 io-oi : ∀ {n}{x : Vec _ n}{i : BFin (flat-prod x)}
       → i-o x (o-i x (i ∷ [])) ≡ i ∷ []
 io-oi {zero} {[]}{i} = cong₂ _∷_ (sym $ BFin1≡0 i) refl
@@ -853,6 +853,11 @@ dim {l = zero} {s} _ = tt
 dim {l = suc l} {ss , _} _ = ss
 
 
+-- map operation
+map : ∀ {a b}{X : Set a}{Y : Set b}{l s}
+    → (X → Y) → Ar l X s → Ar l Y s
+map f (imap a) = imap λ iv → f (a iv)
+
 -- average pooling with ranked-cut
 
 s≡s' : ∀ m n →  m * 2 * (n * 2 * 1) ≡ m * (n * 2 + (n * 2 + 0))
@@ -865,10 +870,10 @@ avgp : ∀ {m n}
 avgp {m}{n} a = let
   s₁ : ShType 3
   s₁ = ((_ , 2 ∷ []) , 2 ∷ 2 ∷ [])
-      ,  m ∷ 2 ∷ n ∷ 2 ∷ []
+     , m ∷ 2 ∷ n ∷ 2 ∷ []
   a₁ = reshape {s₁ = s₁} a (s≡s' m n)
   aₙ = nest a₁ ((1 bounded auto≥) , (1 bounded auto≥))
-  r₃ = imap λ iv → sum $ unimap aₙ iv
+  r₃ = map ((_/ 4) ∘ sum) aₙ
   in reshape r₃ refl
 
 po-eq : ∀ {l s} → (iv jv : Ix l s) → Set
@@ -884,7 +889,7 @@ ix-eq {zero} {s} iv jv refl = refl
 ix-eq {suc l} {ss , sv} (ix iv) (ix jv) poeq = cong ix (fix-eq iv jv poeq)
 
 sel-eq : ∀ {a}{X : Set a}{l s}
-       → (a : Ar l X s)
+       → (a : Ar l X s) 
        → (iv jv : Ix l s)
        → po-eq {l = l} iv jv
        → unimap a iv ≡ unimap a jv
